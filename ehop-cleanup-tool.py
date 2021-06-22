@@ -1,4 +1,6 @@
 import json
+import subprocess
+import platform
 import time
 import csv
 from datetime import datetime
@@ -6,8 +8,8 @@ import requests as requests
 import urllib3
 import re
 
-eh_host = "192.168.x.x"  #  Insert your EDA/ECA's hostname or IP address
-eh_apikey = ""           #  Add your API key here
+eh_host = "192.168.0.06"  #  Insert your EDA/ECA's hostname or IP address
+eh_apikey = "NI28wKoSGTHHWVEwGqesq8wMYJQBkT88oTEG4L5rpMs"           #  Add your API key here
 headers = {'Accept': 'application/json', 'Authorization': "ExtraHop apikey={}".format(eh_apikey)}
 
 # Should we verify the EDA or ECA's server SSL/TLS certificate?
@@ -15,7 +17,7 @@ eh_verify_cert = False
 
 #  If we see there's no description for a trigger, should we generate a generic one with a list of metrics that are
 #  created by the trigger?
-update_descriptions = True
+update_descriptions = False
 
 #  If we're adding a description, how many of the metrics a trigger generates should be included in the description?
 #  The default of 40 is recommended
@@ -23,7 +25,7 @@ description_metric_count = 40
 
 # If we find a trigger with 'debug' enabled, should we disable this? Having debug enabled on a trigger can produce
 # additional load on an EDA
-disable_debug_for_triggers = True
+disable_debug_for_triggers = False
 
 # Should we write out to a CSV file?
 
@@ -36,6 +38,26 @@ write_txt = True
 #  Should we write details of user accounts to a seperate file?
 
 write_users = True
+
+#  Should we just ping the EDA and exit?
+
+ping = True
+
+def ping(host):
+    """
+    Returns True if host (str) responds to a ping request.
+    Remember that a host may not respond to a ping (ICMP) request even if the host name is valid.
+    """
+
+    # Option for the number of packets as a function of
+    param = '-n' if platform.system().lower()=='windows' else '-c'
+
+    # Building the command. Ex: "ping -c 1 google.com"
+    command = ['ping', param, '1', host]
+
+    return_code = subprocess.run(command).returncode
+    print("Return code is " + str(return_code))
+    return return_code
 
 
 def get_trigger_list():
@@ -121,7 +143,7 @@ def check_metrics_added(trigger_name, trigger_script):
     found_count = 0
     metrics_list = []
     trigger_code_in_lines: object = trigger_script.splitlines()
-    print("Checking trigger " + trigger_name)
+    #  print("Checking trigger " + trigger_name)
     for this_line in trigger_code_in_lines:
         for match in re.finditer('.metricAdd', this_line, re.MULTILINE):
             metrics_list.append(extract_metric_statement(this_line.strip()))
@@ -134,7 +156,7 @@ def check_metrics_added(trigger_name, trigger_script):
 
 def write_results_to_txt_file(triggers):
     today = datetime.today().strftime(('%Y-%m-%d'))
-    today_for_file = datetime.today().strftime(('%Y-%m-%d-%H:%M:%S'))
+    today_for_file = datetime.today().strftime('%Y-%m-%d-%H:%M:%S')
     filename = "trigger_metrics-" + today + ".txt"
     with open(filename, 'w') as file_write_out:
         file_write_out.write("----------------------------------------------\n")
@@ -161,8 +183,8 @@ def write_results_to_txt_file(triggers):
             #  Count the number of times 'metricAdd appears in this script and get the occurrences
             metric_add_count, metric_names_list = check_metrics_added(trigger['name'], trigger['script'])
             if metric_add_count > 0:
-                print("Metric addition statements found " + str(metric_add_count) + " times in trigger " + trigger[
-                    'name'] + "\n")
+                #  print("Metric addition statements found " + str(metric_add_count) + " times in trigger " + trigger[
+                #    'name'] + "\n")
                 file_write_out.write("\tA total of " + str(metric_add_count) + " metrics created by this trigger\n")
                 for metric_name in metric_names_list:
                     file_write_out.write("\t\tMetric name: " + str(metric_name) + "\n")
@@ -191,8 +213,8 @@ def write_results_to_csv_file(triggers):
             trigger["mod_time_readable"] = time.ctime(mod_time_seconds)
             metric_add_count, metric_names_list = check_metrics_added(trigger['name'], trigger['script'])
             if metric_add_count > 0:
-                print("Metric addition statements found " + str(metric_add_count) + " times in trigger " + trigger[
-                    'name'] + "\n")
+                #  print("Metric addition statements found " + str(metric_add_count) + " times in trigger " + trigger[
+                #    'name'] + "\n")
                 # csvfile_out.write("\tA total of " + str(metric_add_count) + " metrics created by this trigger\n")
                 metric_list = ""
                 for metric_name in metric_names_list:
@@ -218,7 +240,7 @@ def main():
 
     for trigger in triggers:
         if not trigger['description'] and update_descriptions is True:
-            print("No description for trigger " + trigger['name'] + ". Adding a machine generated one")
+            #  print("No description for trigger " + trigger['name'] + ". Adding a machine generated one")
             description = "This description automatically added. This trigger adds in the following metrics: "
             # We'll populate up to description_metric_count (default:40) metrics into the machine-generated
             # description
@@ -230,13 +252,15 @@ def main():
                     description = description + metric_names_list[i] + ", "
             #  print("Auto description is " + description)
             update_trigger_description(trigger['id'], description)
-        else:
-            print("Trigger has an existing description of " + trigger['description'] + ". No update required")
+        #  else:
+            #  print("Trigger has an existing description of " + trigger['description'] + ". No update required")
 
         if True == trigger['debug'] and disable_debug_for_triggers is True:
-            print("Debug flag enabled for trigger and disable_debug is enabled. Disabling")
+            #  print("Debug flag enabled for trigger and disable_debug is enabled. Disabling")
             disable_debug_on_trigger(trigger['id'])
 
 
 if __name__ == '__main__':
+    result = ping(eh_host)
+    print("Result is " + str(result))
     main()
